@@ -154,20 +154,77 @@
     document.title = `${minutes}:${seconds} — Pomodoro`;
   }
 
-  function playAlert() {
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function triggerHaptic(pattern = 15) {
+    if (navigator.vibrate) {
+      try { navigator.vibrate(pattern); } catch (e) {}
+    }
+  }
+
+  function playButtonClick() {
+    triggerHaptic(12);
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = getAudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9);
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.04);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.9);
+      osc.stop(ctx.currentTime + 0.04);
+    } catch (e) {}
+  }
+
+  function playTick() {
+    try {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const isEven = timeLeft % 2 === 0;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(isEven ? 1300 : 950, ctx.currentTime);
+      gain.gain.setValueAtTime(0.025, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.015);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.015);
+    } catch (e) {}
+  }
+
+  function playTring() {
+    triggerHaptic([120, 60, 120, 60, 250]);
+    try {
+      const ctx = getAudioCtx();
+      const start = ctx.currentTime;
+      [0, 0.22, 0.44, 0.66].forEach(offset => {
+        [853, 960].forEach(freq => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, start + offset);
+          gain.gain.setValueAtTime(0.09, start + offset);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.18);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start + offset);
+          osc.stop(start + offset + 0.18);
+        });
+      });
     } catch (e) {}
   }
 
@@ -183,7 +240,7 @@
 
   function handleComplete() {
     pauseTimer();
-    playAlert();
+    playTring();
 
     if (currentMode === 'work') {
       sessionCount++;
@@ -199,8 +256,10 @@
     if (timeLeft > 0) {
       timeLeft--;
       renderTime();
-    } else {
-      handleComplete();
+      playTick();
+      if (timeLeft === 0) {
+        handleComplete();
+      }
     }
   }
 
@@ -220,6 +279,7 @@
   }
 
   toggleBtn.addEventListener('click', () => {
+    playButtonClick();
     if (isRunning) {
       pauseTimer();
     } else {
@@ -228,6 +288,7 @@
   });
 
   resetBtn.addEventListener('click', () => {
+    playButtonClick();
     pauseTimer();
     timeLeft = MODES[currentMode];
     renderTime();
@@ -235,6 +296,7 @@
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
+      playButtonClick();
       if (tab.dataset.mode !== currentMode) {
         switchMode(tab.dataset.mode);
       }
